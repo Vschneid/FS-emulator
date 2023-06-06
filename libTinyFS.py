@@ -1,4 +1,6 @@
+from libDisk import openDisk, writeBlock, readBlock, closeDisk
 from libDisk import *
+import sys
 
 BLOCKSIZE = 256
 DEFAULT_DISK_SIZE = 10240
@@ -20,6 +22,8 @@ class Superblock:
 class Inode:
     def __init__(self):
         self.file_size = 0
+        #self.file_name = ""
+        #self.block_index = 0
         # Add data block indexing mechanism
 
 class DirectoryEntry:
@@ -28,6 +32,8 @@ class DirectoryEntry:
         self.inode_block = inode_block
 
 initBlock = bytes([0x00] * 256)
+diskTable = {}
+InodeBlock = [Inode] * 256
 
 '''Makes an empty TinyFS file system of size nBytes on the 
 file specified by ‘filename’. This function should use the 
@@ -37,8 +43,35 @@ initializing all data to 0x00, setting magic numbers,
 initializing and writing the superblock and other metadata,
 etc. Must return a specified success/error code.'''
 def tfs_mkfs(filename, nBytes):
-    if openDisk(filename, nBytes):
+    #status, diskNum = openDisk(filename, nBytes)
+    openDisk(filename, nBytes)
+    #diskTable[diskNum] = filename
+
+    superblock = [0x5A, 0x01, 0x02]
+    for _ in range(3, 256):
+        superblock.append(0x00)
+    print(superblock)
+    print()
+    print(bytes(superblock).hex())
+
+    writeBlock(filename, SUPERBLOCK, superblock)
+
+    inode = []
+
+    for _ in range(256):
+        inode.append(0x00)
+    
+    writeBlock(filename, INODEBLOCK, inode)
+
+    blocks = nBytes // BLOCKSIZE
+    for bNum in range(3, blocks):
+        writeBlock(filename, bNum, initBlock)
+    block = [0 * 2560]
+    readBlock(0, 3, block)
+
         
+
+'''
         super = Superblock() #should superblock be a whole block size (rn its just a silly data strucure)
         super.root_inode = INODEBLOCK #check this
         writeBlock(filename, SUPERBLOCK, super)
@@ -48,10 +81,7 @@ def tfs_mkfs(filename, nBytes):
 
         blocks = nBytes // BLOCKSIZE
         for bNum in range(2, blocks):
-            writeBlock(filename, bNum, initBlock)
-        
-
-    pass
+            writeBlock(filename, bNum, initBlock)'''
 
 '''tfs_mount(char *filename) “mounts” a TinyFS file system
 located within ‘filename’. tfs_unmount(void) “unmounts” 
@@ -103,5 +133,5 @@ Returns success/error codes.'''
 def tfs_seek(FD, offset):
     pass
 
-
+tfs_mkfs("./newfile.bin", 2560)
 

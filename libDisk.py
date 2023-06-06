@@ -1,6 +1,5 @@
 
 BLOCKSIZE = 256
-
 SIZEERROR = -1
 FILENOTFOUNDERROR = -2
 READERROR = -3
@@ -20,20 +19,27 @@ requirement to maintain integrity of any content beyond
 nBytes. Errors must be returned for any other failures, as 
 defined by your own error code system.'''
 def openDisk(filename, nBytes):
+    global diskNum
+    #print(filename)
+    #print(diskNum)
     if nBytes % BLOCKSIZE:
+        print("hello")
         return SIZEERROR
     try:
         if nBytes > 0:
             disk = open(filename, 'r+b')
             disk.truncate(nBytes)
-            diskTable[diskNum] = filename
+            #print(diskNum)
+            diskTable[diskNum] = disk
             diskNum += 1
         else:
             disk = open(filename, 'r+b')
-            diskTable[diskNum] = filename
+            #print(diskNum)
+            diskTable[diskNum] = disk
             diskNum += 1
         return 0
     except:
+        #print("hello")
         return FILENOTFOUNDERROR
     pass
 
@@ -55,8 +61,9 @@ def readBlock(disk, bNum, block):
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
             data = diskTable[disk].read(BLOCKSIZE)
-            if data == len(BLOCKSIZE):
+            if len(data) == BLOCKSIZE:
                 block[:BLOCKSIZE] = data
+                print(block)
                 return 0
             else:
                 return READERROR
