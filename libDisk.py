@@ -1,4 +1,5 @@
 
+
 BLOCKSIZE = 256
 SIZEERROR = -1
 FILENOTFOUNDERROR = -2
@@ -55,6 +56,13 @@ success, it returns 0. Errors must be returned if ‘disk’ is
 not available (i.e. hasn’t been opened) or for any other 
 failures, as defined by your own error code system.'''
 def readBlock(disk, bNum, block):
+    print("SEEKSTUFF")
+    print(diskTable[disk].seek(bNum * BLOCKSIZE))
+    diskTable[disk].seek(bNum * BLOCKSIZE)
+    data = diskTable[disk].read(BLOCKSIZE)
+    print(data)
+    print()
+    print(len(data))
     if disk in diskTable:
         if diskTable[disk].closed:
             return FILECLOSEDERROR
@@ -62,8 +70,11 @@ def readBlock(disk, bNum, block):
             diskTable[disk].seek(bNum * BLOCKSIZE)
             data = diskTable[disk].read(BLOCKSIZE)
             if len(data) == BLOCKSIZE:
-                block[:BLOCKSIZE] = data
-                print(block)
+                #print(block)
+                with open(block, "r+b") as block:
+                    block.write(data)
+                #block[:BLOCKSIZE] = data
+                #print(block)
                 return 0
             else:
                 return READERROR
@@ -86,7 +97,7 @@ def writeBlock(disk, bNum, block):
             return FILECLOSEDERROR
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
-            diskTable[disk].write(block[:BLOCKSIZE])
+            diskTable[disk].write(bytes(block[:BLOCKSIZE]))
             return 0
     else:
         return FILENOTFOUNDERROR        
