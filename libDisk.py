@@ -56,13 +56,14 @@ success, it returns 0. Errors must be returned if ‘disk’ is
 not available (i.e. hasn’t been opened) or for any other 
 failures, as defined by your own error code system.'''
 def readBlock(disk, bNum, block):
-    print("SEEKSTUFF")
-    print(diskTable[disk].seek(bNum * BLOCKSIZE))
-    diskTable[disk].seek(bNum * BLOCKSIZE)
-    data = diskTable[disk].read(BLOCKSIZE)
-    print(data)
-    print()
-    print(len(data))
+    #print("SEEKSTUFF")
+    #print(diskTable[disk].seek(bNum * BLOCKSIZE))
+    #diskTable[disk].seek(bNum * BLOCKSIZE)
+    #data = diskTable[disk].read(BLOCKSIZE)
+    #print(data)
+    #print()
+    #print(len(data))
+    print(block)
     if disk in diskTable:
         if diskTable[disk].closed:
             return FILECLOSEDERROR
