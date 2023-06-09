@@ -8,7 +8,6 @@ DEFAULT_DISK_SIZE = 10240
 DEFAULT_DISK_NAME = "tinyFSDisk"
 mounted = 0
 fileDescriptor = 0
-
 inode_blocks = 0
 
 SUPERBLOCK = 0
@@ -39,9 +38,9 @@ def Inode2Hex(file_name, FD, start, blocks, time):
         print("something went wrong")
 
     byteName = byteName + bytes([0x00] * (8 - len(byteName)))
-    byteFD = FD.to_bytes()
-    byteBlocks = blocks.to_bytes()
-    byteStart = start.to_bytes()
+    byteFD = bytes(FD)
+    byteBlocks = bytes(blocks)
+    byteStart = bytes(start)
     timeStamp = bytes(time, encoding="utf8")
     inodeBytes = byteName + byteFD + byteStart + byteBlocks + timeStamp
     #print(inodeBytes)
@@ -59,7 +58,7 @@ def getName(inodeBytes):
     #print(returnString)
     return returnString
 
-getName(Inode2Hex("test", 2, 3, 0, datetime.datetime.now().strftime("%a %H:%M")))
+#getName(Inode2Hex("test", 2, 3, 0, datetime.datetime.now().strftime("%a %H:%M")))
 
 class DirectoryEntry:
     def __init__(self, name, inode_block):
@@ -82,7 +81,6 @@ inode_pos = 0
 
 def block_buff():
     global block
-    #print(block)
     with open(block, "r+b") as pointer:
         data = pointer.read()
     return bytearray(data)
@@ -179,6 +177,7 @@ def tfs_open(name):
     readBlock(0, SUPERBLOCK, block)
     data = block_buff()
     inode_pos = data[2]
+    #print(inode_pos)
     #inode_blocks, inode_curr
     #found = False
     FD = len(open_files)
@@ -189,7 +188,7 @@ def tfs_open(name):
     data = block_buff()
     pair_idx = findFree(data)
     
-    data = data[:pair_idx] + format_name(name) + inode_pos.to_bytes() + data[pair_idx+10:]
+    data = data[:pair_idx] + format_name(name) + bytes(inode_pos) + data[pair_idx+10:]
 
     writeBlock(0, INODEBLOCK, data)
 
@@ -204,6 +203,7 @@ def tfs_open(name):
     #readBlock(0, SUPERBLOCK, block)
     #data = block_buff()
     #print("new_data : ", data)
+    print("FD returned: ", FD)
     return FD
 
 
@@ -253,29 +253,39 @@ Sets the file pointer to 0 (the start of file) when done.
 Returns success/error codes.'''
 def tfs_write(FD, buffer, size):
     global open_files, block
-    #print(block)
+    blocks_written = 0
+
+    # read in super block data
     readBlock(0, SUPERBLOCK, block)
     data = block_buff()
-    start = data[2]
-    blocks_written = 0
-    content_blocks = size // BLOCKSIZE
-    for buff in range(0, content_blocks):
-        writeBlock(0, start + buff, buffer[:buff*BLOCKSIZE])
-        blocks_written += 1
-    if size % BLOCKSIZE:
-        writeBlock(0, start + blocks_written, buffer[blocks_written*BLOCKSIZE:])
-        blocks_written += 1
-    
-    superblock = [0x5A, 0x01, start + blocks_written]
-    for _ in range(3, 256):
-        superblock.append(0x00)
 
-    writeBlock(0, SUPERBLOCK, superblock)
-    inode_block = find_inode(open_files[FD].name)
-    write_inode(inode_block, start, blocks_written)
+    # get block in which data starts at
+    start = data[2]
+    print(start)
+    
+    # get number of blocks needed + increment superblock pointer 
+    # as necessary
+    content_blocks = (size // BLOCKSIZE) + 1
+    #blocks_written = 0
+
+    for buff in range(0, content_blocks):
+        # might need to change for files that require more than one block
+        writeBlock(0, start + buff, buffer[:(buff + 1)*BLOCKSIZE])
+        blocks_written += 1
+
+    #if size % BLOCKSIZE:
+    #    writeBlock(0, start + blocks_written, buffer[blocks_written*BLOCKSIZE:])
+    #    blocks_written += 1
+    
+    #superblock = [0x5A, 0x01, start + blocks_written]
+    #for _ in range(3, 256):
+    #    superblock.append(0x00)
+
+    #writeBlock(0, SUPERBLOCK, superblock)
+    #inode_block = find_inode(open_files[FD].name)
+    #write_inode(inode_block, start, blocks_written)
     #open_files[FD].start = start
     #open_files[FD].blocks = blocks_written
-    open_files[FD].pointer = 0
     return 0
 
     pass
@@ -381,7 +391,9 @@ def findFD(filename):
             return i
 
 tfs_open("testfile")
-
+tfs_write(0, bytes("hello", encoding="utf8"), len("hello"))
+readBlock(0, 3, block)
+print(block_buff())
 '''
 print(findFD("testfile"))
 tfs_write(findFD("testfile"), [0xFE], len([0xFE]))

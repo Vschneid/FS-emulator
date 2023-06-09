@@ -70,6 +70,7 @@ def readBlock(disk, bNum, block):
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
             data = diskTable[disk].read(BLOCKSIZE)
+            #print(data)
             if len(data) == BLOCKSIZE:
                 #print(block)
                 with open(block, "r+b") as block:
@@ -98,6 +99,7 @@ def writeBlock(disk, bNum, block):
             return FILECLOSEDERROR
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
+            #print(block[:BLOCKSIZE])
             diskTable[disk].write(bytes(block[:BLOCKSIZE]))
             return 0
     else:
