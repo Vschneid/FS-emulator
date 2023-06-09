@@ -31,19 +31,19 @@ class Inode:
         #self.block_index = 0
         # Add data block indexing mechanism
 
-def Inode2Hex(file_name, FD, blocks, start, time):
+def Inode2Hex(file_name, FD, start, blocks, time):
     # alloting 10 bytes for name of file
     if len(file_name) <= 8:
         byteName = bytes(file_name, encoding="utf8")
     else:
         print("something went wrong")
 
-    byteName = byteName  + bytes([0x00] * (8 - len(byteName)))
+    byteName = byteName + bytes([0x00] * (8 - len(byteName)))
     byteFD = FD.to_bytes()
     byteBlocks = blocks.to_bytes()
     byteStart = start.to_bytes()
     timeStamp = bytes(time, encoding="utf8")
-    inodeBytes = byteName + byteFD + byteBlocks + byteStart + timeStamp
+    inodeBytes = byteName + byteFD + byteStart + byteBlocks + timeStamp
     #print(inodeBytes)
     #print(inodeBytes[10]) #index of fd is 10
     return inodeBytes
@@ -56,7 +56,7 @@ def getName(inodeBytes):
         if name[i] != 0x00:
             returnString += name[i]
         i += 1
-    print(returnString)
+    #print(returnString)
     return returnString
 
 getName(Inode2Hex("test", 2, 3, 0, datetime.datetime.now().strftime("%a %H:%M")))
@@ -78,13 +78,14 @@ diskTable = {}
 InodeBlock = [Inode] * 256
 block = "./block.bin"
 open_files = []
+inode_pos = 0
 
 def block_buff():
     global block
-    print(block)
+    #print(block)
     with open(block, "r+b") as pointer:
         data = pointer.read()
-    return data
+    return bytearray(data)
 
 '''Makes an empty TinyFS file system of size nBytes on the 
 file specified by ‘filename’. This function should use the 
@@ -103,22 +104,16 @@ def tfs_mkfs(filename=DEFAULT_DISK_NAME, nBytes=DEFAULT_DISK_SIZE):
     superblock = [0x5A, 0x01, 0x02]
     for _ in range(3, 256):
         superblock.append(0x00)
-    #print(superblock)
-    #print()
-    #print(bytes(superblock).hex())
 
     writeBlock(0, SUPERBLOCK, superblock)
     readBlock(0,0,block)
-
     inode = []
 
     for _ in range(256):
         inode.append(0x00)
-    
+
     writeBlock(0, INODEBLOCK, inode)
-
     inode_blocks += 1
-
     blocks = nBytes // BLOCKSIZE
     for bNum in range(3, blocks):
         writeBlock(0, bNum, initBlock)
@@ -155,7 +150,7 @@ def tfs_mount(filename=DEFAULT_DISK_NAME):
     #print(hex(data[0]))
     # if magic number present (verify format of file)
     if hex(data[0]) == '0x5a':
-        print("this should be mounted")
+        #print("this should be mounted")
         mounted = 1
         return
     else:
@@ -165,6 +160,14 @@ def tfs_unmount():
     closeDisk(0)
     pass
 
+# returns the index of the next free block in the special inode
+def findFree(data):
+    #print(data[0:1])
+    for i in range(0, 256, 9):
+        #print(data[i:i+1])
+        if data[i:i+1] == b'\x00':
+            return i
+
 '''Opens a file for reading and writing on the currently 
 mounted file system. Creates a dynamic resource table entry 
 for the file (the structure that tracks open files, the 
@@ -172,11 +175,49 @@ internal file pointer, etc.), and returns a file descriptor
 (integer) that can be used to reference this file while the 
 filesystem is mounted.'''
 def tfs_open(name):
-    global open_files, block, inode_blocks, inode_curr
-    found = False
+    global open_files, block, inode_pos
+    readBlock(0, SUPERBLOCK, block)
+    data = block_buff()
+    inode_pos = data[2]
+    #inode_blocks, inode_curr
+    #found = False
     FD = len(open_files)
     file_entry = OpenFile(0, name, None, None)
     open_files.append(file_entry)
+
+    readBlock(0, INODEBLOCK, block)
+    data = block_buff()
+    pair_idx = findFree(data)
+    
+    data = data[:pair_idx] + format_name(name) + inode_pos.to_bytes() + data[pair_idx+10:]
+
+    writeBlock(0, INODEBLOCK, data)
+
+    inode_nopad = Inode2Hex(name, FD, 1, 0, datetime.datetime.now().strftime("%a %H:%M"))
+    inode_pad = inode_nopad + bytes([0x00]*(256-len(inode_nopad)))
+
+    writeBlock(0, inode_pos, inode_pad)
+    readBlock(0, SUPERBLOCK, block)
+    data = block_buff()
+    data[2] += 1
+    writeBlock(0, SUPERBLOCK, bytes(data))
+    #readBlock(0, SUPERBLOCK, block)
+    #data = block_buff()
+    #print("new_data : ", data)
+    return FD
+
+
+def format_name(file_name):
+    if len(file_name) <= 8:
+        byteName = bytes(file_name, encoding="utf8")
+    else:
+        print("something went wrong")
+
+    byteName = byteName + bytes([0x00] * (8 - len(byteName)))
+    return byteName
+
+    #will have to make the inode and do timestamp here
+    '''
     for inodeB in range(1, inode_blocks+1):
         readBlock(0, inodeB, block)
         data = block_buff()
@@ -193,6 +234,7 @@ def tfs_open(name):
         writeBlock(0, inode_blocks)
 
     data.decode()
+    '''
     return FD
     pass
 
@@ -211,7 +253,7 @@ Sets the file pointer to 0 (the start of file) when done.
 Returns success/error codes.'''
 def tfs_write(FD, buffer, size):
     global open_files, block
-    print(block)
+    #print(block)
     readBlock(0, SUPERBLOCK, block)
     data = block_buff()
     start = data[2]
@@ -229,14 +271,44 @@ def tfs_write(FD, buffer, size):
         superblock.append(0x00)
 
     writeBlock(0, SUPERBLOCK, superblock)
-    open_files[FD].name
-    
-    open_files[FD].start = start
-    open_files[FD].blocks = blocks_written
+    inode_block = find_inode(open_files[FD].name)
+    write_inode(inode_block, start, blocks_written)
+    #open_files[FD].start = start
+    #open_files[FD].blocks = blocks_written
     open_files[FD].pointer = 0
     return 0
 
     pass
+
+def find_inode(name):
+    global block
+    readBlock(0, INODEBLOCK, block)
+    data = block_buff()
+    for i in range(0, len(data)-9):
+        if data[i:i+8] == name:
+            inode = i + 9
+    return inode
+
+def write_inode(inode_block, start, blocks_written):
+    global block
+    readBlock(0, inode_block, block)
+    data = block_buff()
+    data[8:9] = start
+    data[9:10] = blocks_written
+    writeBlock(0, inode_block,bytes(data))
+ 
+def read_inode(inode_block):
+    global block
+    readBlock(0, inode_block, block)
+    data = block_buff()
+    #more probably
+    for inodeB in range(1, inode_blocks+1):
+        readBlock(0, inodeB, block)
+        data = block_buff()
+        #print(data)
+        for inode in range(0, len(data), 32):
+            if name == getName(inode):
+                found = inode
 
 '''Deletes a file and marks its blocks as free on disk.'''
 def tfs_delete(FD):
@@ -309,6 +381,8 @@ def findFD(filename):
             return i
 
 tfs_open("testfile")
+
+'''
 print(findFD("testfile"))
 tfs_write(findFD("testfile"), [0xFE], len([0xFE]))
 print(open_files[findFD("testfile")].pointer)
@@ -319,3 +393,4 @@ print(bytes("filenamey", encoding="utf8").decode())
 print(datetime.datetime.now().strftime("%a %H:%M"))
 print(datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
 #DirectoryEntry = 
+'''

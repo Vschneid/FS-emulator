@@ -24,7 +24,7 @@ def openDisk(filename, nBytes):
     #print(filename)
     #print(diskNum)
     if nBytes % BLOCKSIZE:
-        print("hello")
+        #print("hello")
         return SIZEERROR
     try:
         if nBytes > 0:
@@ -63,7 +63,7 @@ def readBlock(disk, bNum, block):
     #print(data)
     #print()
     #print(len(data))
-    print(block)
+    #print(block)
     if disk in diskTable:
         if diskTable[disk].closed:
             return FILECLOSEDERROR
