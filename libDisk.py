@@ -70,7 +70,6 @@ def readBlock(disk, bNum, block):
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
             data = diskTable[disk].read(BLOCKSIZE)
-            #print(data)
             if len(data) == BLOCKSIZE:
                 #print(block)
                 with open(block, "r+b") as block:
