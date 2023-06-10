@@ -1,11 +1,8 @@
-
-
 BLOCKSIZE = 256
 SIZEERROR = -1
 FILENOTFOUNDERROR = -2
 READERROR = -3
 FILECLOSEDERROR = -4
-
 diskTable = {}
 diskNum = 0
 

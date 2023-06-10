@@ -9,13 +9,9 @@ DEFAULT_DISK_NAME = "tinyFSDisk"
 mounted = 0
 fileDescriptor = 0
 inode_blocks = 0
-
 SUPERBLOCK = 0
-INODEBLOCK = 1
-#DATABLOCK = 2
-#BLOCKFREE = 3
+ROOTINODE = 1
 
-# Define data structures for Superblock, Inode, and Directory Entry
 class Superblock:
     def __init__(self):
         self.magic_num = 0x5A
@@ -27,24 +23,19 @@ class Inode:
         self.file_size = 0
         self.file_name = ""
         self.time = ""
-        #self.block_index = 0
-        # Add data block indexing mechanism
 
 def Inode2Hex(file_name, FD, start, blocks, time):
-    # alloting 10 bytes for name of file
     if len(file_name) <= 8:
         byteName = bytes(file_name, encoding="utf8")
     else:
         print("something went wrong")
 
     byteName = byteName + bytes([0x00] * (8 - len(byteName)))
-    byteFD = bytes(FD)
-    byteBlocks = bytes(blocks)
-    byteStart = bytes(start)
+    byteFD = FD.to_bytes(1,byteorder='big')
+    byteBlocks = blocks.to_bytes(1,byteorder='big')
+    byteStart = start.to_bytes(1,byteorder='big')
     timeStamp = bytes(time, encoding="utf8")
     inodeBytes = byteName + byteFD + byteStart + byteBlocks + timeStamp
-    #print(inodeBytes)
-    #print(inodeBytes[10]) #index of fd is 10
     return inodeBytes
 
 def getName(inodeBytes):
@@ -55,10 +46,9 @@ def getName(inodeBytes):
         if name[i] != 0x00:
             returnString += name[i]
         i += 1
-    #print(returnString)
     return returnString
 
-#getName(Inode2Hex("test", 2, 3, 0, datetime.datetime.now().strftime("%a %H:%M")))
+#print(Inode2Hex("test", 2, 3, 0, datetime.datetime.now().strftime("%a %H:%M")))
 
 class DirectoryEntry:
     def __init__(self, name, inode_block):
@@ -74,10 +64,10 @@ class OpenFile:
 
 initBlock = bytes([0x00] * 256)
 diskTable = {}
-InodeBlock = [Inode] * 256
 block = "./block.bin"
 open_files = []
 inode_pos = 0
+buffer = ""
 
 def block_buff():
     global block
@@ -92,12 +82,9 @@ success, format the file to be mountable. This includes
 initializing all data to 0x00, setting magic numbers, 
 initializing and writing the superblock and other metadata,
 etc. Must return a specified success/error code.'''
-
 def tfs_mkfs(filename=DEFAULT_DISK_NAME, nBytes=DEFAULT_DISK_SIZE):
     global inode_blocks
-    #status, diskNum = openDisk(filename, nBytes)
     openDisk(filename, nBytes)
-    #diskTable[diskNum] = filename
 
     superblock = [0x5A, 0x01, 0x02]
     for _ in range(3, 256):
@@ -110,27 +97,13 @@ def tfs_mkfs(filename=DEFAULT_DISK_NAME, nBytes=DEFAULT_DISK_SIZE):
     for _ in range(256):
         inode.append(0x00)
 
-    writeBlock(0, INODEBLOCK, inode)
+    writeBlock(0, ROOTINODE, inode)
     inode_blocks += 1
     blocks = nBytes // BLOCKSIZE
     for bNum in range(3, blocks):
         writeBlock(0, bNum, initBlock)
-    #block = [0 * 2560]
+
     readBlock(0, 3, block)
-    #closeDisk(filename)
-
-    
-'''
-        super = Superblock() #should superblock be a whole block size (rn its just a silly data strucure)
-        super.root_inode = INODEBLOCK #check this
-        writeBlock(filename, SUPERBLOCK, super)
-
-        inode = Inode() #and this, should inode come after super for whole file system, I thought innode was for files added
-        writeBlock(filename, INODEBLOCK, inode)
-
-        blocks = nBytes // BLOCKSIZE
-        for bNum in range(2, blocks):
-            writeBlock(filename, bNum, initBlock)'''
 
 '''tfs_mount(char *filename) “mounts” a TinyFS file system
 located within ‘filename’. tfs_unmount(void) “unmounts” 
@@ -145,10 +118,9 @@ def tfs_mount(filename=DEFAULT_DISK_NAME):
         raise Exception("Currently have a disk mounted")
     readBlock(0, 0, block)
     data = block_buff()
-    #print(hex(data[0]))
+
     # if magic number present (verify format of file)
     if hex(data[0]) == '0x5a':
-        #print("this should be mounted")
         mounted = 1
         return
     else:
@@ -160,9 +132,7 @@ def tfs_unmount():
 
 # returns the index of the next free block in the special inode
 def findFree(data):
-    #print(data[0:1])
     for i in range(0, 256, 9):
-        #print(data[i:i+1])
         if data[i:i+1] == b'\x00':
             return i
 
@@ -174,25 +144,24 @@ internal file pointer, etc.), and returns a file descriptor
 filesystem is mounted.'''
 def tfs_open(name):
     global open_files, block, inode_pos
+
     readBlock(0, SUPERBLOCK, block)
     data = block_buff()
     inode_pos = data[2]
-    #print(inode_pos)
-    #inode_blocks, inode_curr
-    #found = False
+
     FD = len(open_files)
     file_entry = OpenFile(0, name, None, None)
     open_files.append(file_entry)
 
-    readBlock(0, INODEBLOCK, block)
+    readBlock(0, ROOTINODE, block)
     data = block_buff()
     pair_idx = findFree(data)
     
-    data = data[:pair_idx] + format_name(name) + bytes(inode_pos) + data[pair_idx+10:]
+    data = data[:pair_idx] + format_name(name) + inode_pos.to_bytes(1, byteorder='big') + data[pair_idx+11:]
 
-    writeBlock(0, INODEBLOCK, data)
+    writeBlock(0, ROOTINODE, data)
 
-    inode_nopad = Inode2Hex(name, FD, 1, 0, datetime.datetime.now().strftime("%a %H:%M"))
+    inode_nopad = Inode2Hex(name, FD, 0, 0, datetime.datetime.now().strftime("%a %H:%M"))
     inode_pad = inode_nopad + bytes([0x00]*(256-len(inode_nopad)))
 
     writeBlock(0, inode_pos, inode_pad)
@@ -200,10 +169,6 @@ def tfs_open(name):
     data = block_buff()
     data[2] += 1
     writeBlock(0, SUPERBLOCK, bytes(data))
-    #readBlock(0, SUPERBLOCK, block)
-    #data = block_buff()
-    #print("new_data : ", data)
-    print("FD returned: ", FD)
     return FD
 
 
@@ -216,28 +181,6 @@ def format_name(file_name):
     byteName = byteName + bytes([0x00] * (8 - len(byteName)))
     return byteName
 
-    #will have to make the inode and do timestamp here
-    '''
-    for inodeB in range(1, inode_blocks+1):
-        readBlock(0, inodeB, block)
-        data = block_buff()
-        #print(data)
-        for inode in range(0, len(data), 32):
-            if name == getName(inode):
-                found = inode
-            break #do we have to reset its FD
-        
-    if found:
-        pass
-    else:
-        Inode2Hex(name, FD, 0, 0)
-        writeBlock(0, inode_blocks)
-
-    data.decode()
-    '''
-    return FD
-    pass
-
 '''Closes the file and removes dynamic resource table entry'''
 def tfs_close(FD):
     global open_files
@@ -245,7 +188,6 @@ def tfs_close(FD):
         open_files[FD] = 0
     else:
         raise Exception("No open files to close")
-    #pass
 
 '''Writes buffer ‘buffer’ of size ‘size’, which represents 
 an entire file’s contents, to the file described by ‘FD’. 
@@ -255,57 +197,61 @@ def tfs_write(FD, buffer, size):
     global open_files, block
     blocks_written = 0
 
-    # read in super block data
-    readBlock(0, SUPERBLOCK, block)
+    inode_block = find_inode(open_files[FD].name)
+    #print(inode_block)
+    readBlock(0, inode_block, block)
     data = block_buff()
 
-    # get block in which data starts at
-    start = data[2]
-    print(start)
+    #data[11:]
+ 
+    #if file already written to
+    if data[9]:
+        start = data[9]
+    #else start pointer at next free block
+    else:
+        readBlock(0, SUPERBLOCK, block)
+        data = block_buff()
+        start = data[2]
     
-    # get number of blocks needed + increment superblock pointer 
-    # as necessary
-    content_blocks = (size // BLOCKSIZE) + 1
-    #blocks_written = 0
-
+    content_blocks = (size // BLOCKSIZE)
+    blocks_written = 0
+    
     for buff in range(0, content_blocks):
-        # might need to change for files that require more than one block
-        writeBlock(0, start + buff, buffer[:(buff + 1)*BLOCKSIZE])
+        writeBlock(0, start + buff, buffer[:(buff)*BLOCKSIZE])
         blocks_written += 1
 
-    #if size % BLOCKSIZE:
-    #    writeBlock(0, start + blocks_written, buffer[blocks_written*BLOCKSIZE:])
-    #    blocks_written += 1
+    if size % BLOCKSIZE:
+        writeBlock(0, start + blocks_written, buffer[blocks_written*BLOCKSIZE:])
+        blocks_written += 1
     
-    #superblock = [0x5A, 0x01, start + blocks_written]
-    #for _ in range(3, 256):
-    #    superblock.append(0x00)
+    superblock = [0x5A, 0x01, start + blocks_written]
+    for _ in range(3, 256):
+        superblock.append(0x00)
 
-    #writeBlock(0, SUPERBLOCK, superblock)
-    #inode_block = find_inode(open_files[FD].name)
-    #write_inode(inode_block, start, blocks_written)
-    #open_files[FD].start = start
-    #open_files[FD].blocks = blocks_written
+    writeBlock(0, SUPERBLOCK, superblock)
+    inode_block = find_inode(open_files[FD].name)
+    write_inode(inode_block, start, blocks_written, datetime.datetime.now().strftime("%a %H:%M"))
     return 0
-
-    pass
 
 def find_inode(name):
     global block
-    readBlock(0, INODEBLOCK, block)
+    readBlock(0, ROOTINODE, block)
     data = block_buff()
-    for i in range(0, len(data)-9):
-        if data[i:i+8] == name:
-            inode = i + 9
+    #print(data)
+    inode = -1
+    for i in range(0, 256, 9):
+        if data[i:i+8] == bytes(name, encoding="utf8"):
+            inode = data[i + 8]
     return inode
 
-def write_inode(inode_block, start, blocks_written):
+def write_inode(inode_block, start, blocks_written, time):
     global block
     readBlock(0, inode_block, block)
     data = block_buff()
-    data[8:9] = start
-    data[9:10] = blocks_written
-    writeBlock(0, inode_block,bytes(data))
+    data[9] = start
+    data[10] = blocks_written
+    data[20:28] = bytes(time, encoding="utf8")
+    writeBlock(0, inode_block, bytes(data))
  
 def read_inode(inode_block):
     global block
@@ -351,17 +297,24 @@ using the current file pointer location and incrementing it
 by one upon success. If the file pointer is already at the 
 end of the file then tfs_readByte() should return an error 
 and not increment the file pointer.'''
-def tfs_readByte(FD, offset):
+
+def tfs_readByte(FD):
     global buffer, open_files, block
     file = open_files[FD]
+    inode_block = find_inode(open_files[FD].name)
+    #print(inode_block)
+    readBlock(0, inode_block, block)
+    data = block_buff()
+    start = data[9]
+    blocks = data[10]
     save = -1
-    for blockNum in range(file.start, file.start+file.blocks+1):
-        print(file.start)
-        print(file.blocks+file.start)
-        print(file.pointer + file.start*BLOCKSIZE)
-        print(blockNum * BLOCKSIZE)
-        if (file.pointer + file.start*BLOCKSIZE) < blockNum * BLOCKSIZE:
-            print("block to be saved: " + str(block))
+    for blockNum in range(start, start+blocks+1):
+        #print(start)
+        #print(blocks+start)
+        #print(file.pointer + file.start*BLOCKSIZE)
+        #print(blockNum * BLOCKSIZE)
+        if (file.pointer + start*BLOCKSIZE) < blockNum * BLOCKSIZE:
+            #print("block to be saved: " + str(block))
             save = blockNum - 1
     
     if save == -1:
@@ -370,8 +323,9 @@ def tfs_readByte(FD, offset):
     readBlock(0, save, block)
     data = block_buff()
     a_byte = file.pointer
-    buffer = data[a_byte:a_byte+1]
-    print(data[a_byte:a_byte+1])
+   # print("THERE")
+    #print(data[a_byte:a_byte+1])
+    buffer = bytes(data[a_byte:a_byte+1])
     open_files[FD].pointer += 1
 
 '''Change the file pointer location to offset (absolute).
@@ -393,7 +347,24 @@ def findFD(filename):
 tfs_open("testfile")
 tfs_write(0, bytes("hello", encoding="utf8"), len("hello"))
 readBlock(0, 3, block)
+tfs_readByte(0)
+tfs_readByte(0)
+tfs_readByte(0)
+tfs_readByte(0)
+
+readBlock(0, 2, block)
 print(block_buff())
+
+#print(block_buff())
+tfs_write(0, bytes("there", encoding="utf8"), len("there"))
+readBlock(0, 3, block)
+#print(block_buff())
+readBlock(0, 2, block)
+#print(block_buff())
+#readBlock(0, SUPERBLOCK, block)
+#print(block_buff())
+#readBlock(0, ROOTINODE, block)
+#print(block_buff())
 '''
 print(findFD("testfile"))
 tfs_write(findFD("testfile"), [0xFE], len([0xFE]))
