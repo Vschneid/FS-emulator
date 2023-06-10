@@ -132,7 +132,7 @@ def tfs_unmount():
 
 # returns the index of the next free block in the special inode
 def findFree(data):
-    for i in range(0, 256, 9):
+    for i in range(0, 243, 9):
         if data[i:i+1] == b'\x00':
             return i
 
@@ -198,12 +198,9 @@ def tfs_write(FD, buffer, size):
     blocks_written = 0
 
     inode_block = find_inode(open_files[FD].name)
-    #print(inode_block)
     readBlock(0, inode_block, block)
     data = block_buff()
 
-    #data[11:]
- 
     #if file already written to
     if data[9]:
         start = data[9]
@@ -237,9 +234,9 @@ def find_inode(name):
     global block
     readBlock(0, ROOTINODE, block)
     data = block_buff()
-    #print(data)
+
     inode = -1
-    for i in range(0, 256, 9):
+    for i in range(0, 243, 9):
         if data[i:i+8] == bytes(name, encoding="utf8"):
             inode = data[i + 8]
     return inode
@@ -252,7 +249,7 @@ def write_inode(inode_block, start, blocks_written, time):
     data[10] = blocks_written
     data[20:28] = bytes(time, encoding="utf8")
     writeBlock(0, inode_block, bytes(data))
- 
+'''
 def read_inode(inode_block):
     global block
     readBlock(0, inode_block, block)
@@ -265,6 +262,7 @@ def read_inode(inode_block):
         for inode in range(0, len(data), 32):
             if name == getName(inode):
                 found = inode
+                '''
 
 '''Deletes a file and marks its blocks as free on disk.'''
 def tfs_delete(FD):
@@ -272,21 +270,68 @@ def tfs_delete(FD):
     readBlock(0, SUPERBLOCK, block)
     data = block_buff()
     start_free = data[2]
-    start_shift = open_files[FD].start 
-    blocks_2_shift = open_files[FD].blocks
-    for i in range((start_shift + blocks_2_shift), start_free):
-        readBlock(0, i, block)
+
+    inode_block = find_inode(open_files[FD].name)
+    readBlock(0, inode_block, block)
+    data = block_buff()
+
+    start_shift = data[9] #open_files[FD].start 
+    blocks_2_shift = data[10] #open_files[FD].blocks
+
+    blocks_shifted = 0
+    for i in range(2):
+        if i == 0:
+            inode_block = find_inode(open_files[FD].name)
+            readBlock(0, inode_block, block)
+            data = block_buff()
+
+            start_shift = data[9] #open_files[FD].start 
+            blocks_2_shift = data[10] #open_files[FD].blocks
+
+        if i == 1:
+            start_shift = find_inode(open_files[FD].name)
+            blocks_2_shift = 1
+
+        readBlock(0, ROOTINODE, block)
         data = block_buff()
-        writeBlock(0, i - blocks_2_shift, data)
+        for pair in range(0, 243, 9):
+            inode_pos = data[pair+8]
+            if inode_pos:
+                readBlock(0, data[pair+8], block)
+                data = block_buff()
+                if data[9] > start_shift:
+                    data[9] = data[9] - blocks_2_shift
+                    writeBlock(0, inode_pos, bytes(data))
+                readBlock(0, ROOTINODE, block)
+                data = block_buff()
+                inode_pos = data[pair+8]
+                if inode_pos > start_shift:
+                    data[pair+8] = data[pair+8] - blocks_2_shift
+                    writeBlock(0, ROOTINODE, bytes(data))
 
-    for file in open_files:
-        if file.start > start_shift:
-            file.start = file.start - blocks_2_shift
+        for i in range((start_shift + blocks_2_shift), start_free):
+            readBlock(0, i, block)
+            data = block_buff()
+            writeBlock(0, i - blocks_2_shift, data)
 
-    superblock = [0x5A, 0x01, start_free - blocks_2_shift]
+        start_free = start_free - blocks_2_shift
+        blocks_shifted += blocks_2_shift
+
+    readBlock(0, ROOTINODE, block)
+    data = block_buff()
+    for i in range(0, 243, 9):
+        if data[i:i+8] == bytes(open_files[FD].name, encoding="utf8"):
+            data[i:i+9] = bytearray([0x00]*9)
+
+    writeBlock(0, ROOTINODE, bytes(data))
+
+    superblock = [0x5A, 0x01, start_free]
     for _ in range(3, 256):
         superblock.append(0x00)
     writeBlock(0, SUPERBLOCK, superblock)
+
+    for i in range(start_free, start_free+blocks_shifted):
+        writeBlock(0, i, bytes([0x00] * 256))
 
     open_files[FD] = 0
 
@@ -297,24 +342,21 @@ using the current file pointer location and incrementing it
 by one upon success. If the file pointer is already at the 
 end of the file then tfs_readByte() should return an error 
 and not increment the file pointer.'''
-
 def tfs_readByte(FD):
     global buffer, open_files, block
     file = open_files[FD]
-    inode_block = find_inode(open_files[FD].name)
-    #print(inode_block)
+    inode_block = find_inode(file.name)
     readBlock(0, inode_block, block)
     data = block_buff()
+
+    data[29:38] = bytes(datetime.datetime.now().strftime("%a %H:%M"), encoding="utf8")
+    writeBlock(0, inode_block, bytes(data))
+
     start = data[9]
     blocks = data[10]
     save = -1
     for blockNum in range(start, start+blocks+1):
-        #print(start)
-        #print(blocks+start)
-        #print(file.pointer + file.start*BLOCKSIZE)
-        #print(blockNum * BLOCKSIZE)
         if (file.pointer + start*BLOCKSIZE) < blockNum * BLOCKSIZE:
-            #print("block to be saved: " + str(block))
             save = blockNum - 1
     
     if save == -1:
@@ -323,8 +365,7 @@ def tfs_readByte(FD):
     readBlock(0, save, block)
     data = block_buff()
     a_byte = file.pointer
-   # print("THERE")
-    #print(data[a_byte:a_byte+1])
+
     buffer = bytes(data[a_byte:a_byte+1])
     open_files[FD].pointer += 1
 
@@ -344,22 +385,38 @@ def findFD(filename):
         if open_files[i].name == filename:
             return i
 
-tfs_open("testfile")
+tfs_open("testing1")
 tfs_write(0, bytes("hello", encoding="utf8"), len("hello"))
-readBlock(0, 3, block)
-tfs_readByte(0)
-tfs_readByte(0)
-tfs_readByte(0)
-tfs_readByte(0)
 
-readBlock(0, 2, block)
-print(block_buff())
+tfs_open("testing2")
+tfs_open("testing3")
+tfs_write(2, bytes("motherfucker", encoding="utf8"), len("motherfucker"))
+#readBlock(0, 3, block)
+#tfs_readByte(0)
+#tfs_readByte(0)
+#tfs_readByte(0)
+#tfs_readByte(0)
+
+#readBlock(0, 2, block)
+#print(block_buff())
 
 #print(block_buff())
-tfs_write(0, bytes("there", encoding="utf8"), len("there"))
-readBlock(0, 3, block)
+tfs_write(1, bytes("there", encoding="utf8"), len("there"))
+
+tfs_delete(0)
+
+for i in range(0,11):
+    readBlock(0, i, block)
+    data = block_buff()
+    print("BLOCK " + str(i) + ":", bytes(data[:32]))
+    print("\n")
+    #print(data)
+
+
+
+#readBlock(0, 3, block)
 #print(block_buff())
-readBlock(0, 2, block)
+#readBlock(0, 2, block)
 #print(block_buff())
 #readBlock(0, SUPERBLOCK, block)
 #print(block_buff())
