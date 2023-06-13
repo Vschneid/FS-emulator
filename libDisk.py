@@ -18,28 +18,21 @@ nBytes. Errors must be returned for any other failures, as
 defined by your own error code system.'''
 def openDisk(filename, nBytes):
     global diskNum
-    #print(filename)
-    #print(diskNum)
     if nBytes % BLOCKSIZE:
-        #print("hello")
         return SIZEERROR
     try:
         if nBytes > 0:
             disk = open(filename, 'r+b')
             disk.truncate(nBytes)
-            #print(diskNum)
             diskTable[diskNum] = disk
             diskNum += 1
         else:
             disk = open(filename, 'r+b')
-            #print(diskNum)
             diskTable[diskNum] = disk
             diskNum += 1
         return 0
     except:
-        #print("hello")
         return FILENOTFOUNDERROR
-    pass
 
 '''readBlock() reads an entire block of BLOCKSIZE bytes from 
 the open disk (identified by ‘disk’) and copies the result 
@@ -53,14 +46,6 @@ success, it returns 0. Errors must be returned if ‘disk’ is
 not available (i.e. hasn’t been opened) or for any other 
 failures, as defined by your own error code system.'''
 def readBlock(disk, bNum, block):
-    #print("SEEKSTUFF")
-    #print(diskTable[disk].seek(bNum * BLOCKSIZE))
-    #diskTable[disk].seek(bNum * BLOCKSIZE)
-    #data = diskTable[disk].read(BLOCKSIZE)
-    #print(data)
-    #print()
-    #print(len(data))
-    #print(block)
     if disk in diskTable:
         if diskTable[disk].closed:
             return FILECLOSEDERROR
@@ -78,7 +63,6 @@ def readBlock(disk, bNum, block):
                 return READERROR
     else:
         return FILENOTFOUNDERROR
-    pass
 
 '''writeBlock() takes disk number ‘disk’ and logical block 
 number ‘bNum’ and writes the content of the buffer ‘block’ 
@@ -95,12 +79,10 @@ def writeBlock(disk, bNum, block):
             return FILECLOSEDERROR
         else:
             diskTable[disk].seek(bNum * BLOCKSIZE)
-            #print(block[:BLOCKSIZE])
             diskTable[disk].write(bytes(block[:BLOCKSIZE]))
             return 0
     else:
         return FILENOTFOUNDERROR        
-    pass
 
 '''closeDisk() takes a disk number ‘disk’ and makes the disk 
 closed to further I/O; i.e. any subsequent reads or writes 
@@ -115,6 +97,5 @@ def closeDisk(disk):
             diskTable[disk].close()
     else:
         return FILENOTFOUNDERROR
-    
     pass
 
