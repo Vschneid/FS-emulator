@@ -1,0 +1,18 @@
+CSC 453: Operating Systems
+Program 4: Tiny FS v2
+Authors: Van Schneider & Julian Murillo
+
+An explanation of how well your TinyFS implementation works
+
+Implementation Status:
+Our TinyFS system is functioning great and tested and has some extra overhead when deleting files as we rewrite all files to accomodate free space. We do so as we currently have a pointer to a superblock which then points to the first block of our free block chain. We also have some ease of use limitations when managing multiple disks. The tfs functions will access and manage data on the most recently mounted disk.
+
+Additional Functionality #1: Timestamps
+We chose to implement timestamp functionality, in which date created is a static timestamp written to the corresponding Inode of a file with date modified and date accessed stamps being dynamically changed from the tfs_write() function and again date accessed stamp also being updated when a user reads a byte from a file. When calling our tfs_stat() function and passing a valid FD, a tuple with the relevant information for the file (filename, date_created, date_modified, date_accessed) is returned for the user to examine the information they want to reference.
+We have shown that it works by creating a file, calling sleep(60) so that it waits for a minute before writing information to the file and then calling tfs_stat() which has the date created time and date modified time exactly 1 minute apart from one another. We sleep for another minute before using tfs_readByte() and then calling tfs_stat() again to make sure that all stamps are 1 minute apart from the next time stamp. 
+
+Additional Functionality #2: Directory listing and renaming
+We also implemented directory listing and renaming. The way our functions work is that for tfs_rename(oldname, newname) the user provides the current filename they want to replace with the newname string, we then first check that the old name exists in the file directory and disk (or exit with the appropriate code) and then first replace the name in the disk table structure, before moving to the special root inode and replacing the name there next to the corresponding index of the actual inode that contains the files data and then overwrites the name there. Our tfs_readdir() returns all existing files of the disk that is currently mounted in the form of an array as we search through the root inode of the disk and append all existing names to the array with all names returned in the form of a string.
+
+Any limitations or bugs:
+At this current moment there are currently no bugs we have encountered that we have not already resolved.

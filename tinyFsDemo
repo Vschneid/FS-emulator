@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+from libTinyFS import *
+
+def main():
+    print("TESTING MOUNT (INITIAILIZTION AND FORMATTING)")
+    tfs_mkfs("./newfile.bin", 2560)
+    tfs_mount("./newfile.bin")
+
+    for i in range(0,11):
+        readBlock(0, i, block)
+        data = block_buff()
+        print("BLOCK " + str(i) + ":", bytes(data[:32]))
+        print("\n")
+
+    pause = input("")
+
+    print("TESTING OPEN FILE AND WRITING DATA TO FILE")
+    tfs_open("testing1")
+    tfs_write(0, bytes("testing1", encoding="utf8"), len("testing1"))
+    tfs_open("testing2")
+    tfs_open("testing3")
+    tfs_write(1, bytes("testing2", encoding="utf8"), len("testing2"))
+
+    for i in range(0,11):
+        readBlock(0, i, block)
+        data = block_buff()
+        print("BLOCK " + str(i) + ":", bytes(data[:32]))
+        print("\n")
+
+    pause = input()
+
+    print("TESTING OUR METADATA TIMESTAMPS")
+    print()
+    print(tfs_stat(0))
+    print()
+
+    print("TESTING RENAME OF FILE")
+    print()
+    tfs_rename("testing1", "shorty")
+    print()
+
+    for i in range(0,11):
+        readBlock(0, i, block)
+        data = block_buff()
+        print("BLOCK " + str(i) + ":", bytes(data[:32]))
+        print("\n")
+
+    pause = input()
+
+    print("TESTING DIRECTORY LISTING")
+    data = tfs_readdir()
+
+    print()
+    print(data)
+    print()
+
+
+    print("TESTING DELETE (SHOULD SHOW BLOCK SHIFT)")
+    print()
+    tfs_delete(0)
+    print()
+
+    for i in range(0,11):
+        readBlock(0, i, block)
+        data = block_buff()
+        print("BLOCK " + str(i) + ":", bytes(data[:32]))
+        print("\n")
+
+
+    pause = input()
+
+    print("TESTING READ AND SEEK OPERATIONS")
+
+    print(tfs_readByte(1))
+    tfs_seek(1, 4)
+    print(tfs_readByte(1))
+
+    pause = input()
+
+
+if __name__ == "__main__":
+    main()

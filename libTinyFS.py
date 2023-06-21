@@ -327,7 +327,7 @@ and not increment the file pointer.'''
 def tfs_readByte(FD):
     global buffer, open_files, block
     file = open_files[FD]
-    inode_block = find_inode(file.name)
+    inode_block = find_inode(open_files[FD].name)
     readBlock(0, inode_block, block)
     data = block_buff()
 
@@ -346,21 +346,21 @@ def tfs_readByte(FD):
     
     readBlock(0, save, block)
     data = block_buff()
-    a_byte = file.pointer
+    a_byte = open_files[FD].pointer
 
     buffer = bytes(data[a_byte:a_byte+1])
     open_files[FD].pointer += 1
+    return buffer
 
 '''Change the file pointer location to offset (absolute).
 Returns success/error codes.'''
 def tfs_seek(FD, offset):
     global open_files
-    if FD > open_files or open_files[FD] == None:
+    if open_files[FD] == None:
         errorno(-2)
     open_files[FD].pointer = offset
 
-tfs_mkfs("./newfile.bin", 2560)
-tfs_mount("./newfile.bin")
+
 
 # helper to find fd assosciated with filename
 # string -> int
@@ -417,64 +417,13 @@ def tfs_rename(oldName, newName):
             data[i : i +8] = formatted_name
     writeBlock(0, ROOTINODE, bytes(data))
 
-    
-tfs_open("testing1")
-tfs_write(0, bytes("hello", encoding="utf8"), len("hello"))
-tfs_open("testing2")
-tfs_open("testing3")
-tfs_write(2, bytes("motherfucker", encoding="utf8"), len("motherfucker"))
-
-test = tfs_stat(0)
-
-tfs_rename("testing1", "FUCKU")
-
-test = tfs_stat(0)
-print(test["Name"])
-print("hello")
-
-tfs_stat(1)
-tfs_stat(2)
-tfs_stat(3)
-
-#readBlock(0, 3, block)
-#tfs_readByte(0)
-#tfs_readByte(0)
-#tfs_readByte(0)
-#tfs_readByte(0)
-
-#readBlock(0, 2, block)
-#print(block_buff())
-
-#print(block_buff())
-tfs_write(1, bytes("there", encoding="utf8"), len("there"))
-
-tfs_delete(0)
-
-for i in range(0,11):
-    readBlock(0, i, block)
+def tfs_readdir():
+    arr = []
+    readBlock(0, ROOTINODE, block)
     data = block_buff()
-    print("BLOCK " + str(i) + ":", bytes(data[:32]))
-    print("\n")
     #print(data)
-
-
-#readBlock(0, 3, block)
-#print(block_buff())
-#readBlock(0, 2, block)
-#print(block_buff())
-#readBlock(0, SUPERBLOCK, block)
-#print(block_buff())
-#readBlock(0, ROOTINODE, block)
-#print(block_buff())
-'''
-print(findFD("testfile"))
-tfs_write(findFD("testfile"), [0xFE], len([0xFE]))
-print(open_files[findFD("testfile")].pointer)
-tfs_readByte(findFD("testfile"), 1)
-
-#print(DirectoryEntry("testing", ))
-print(bytes("filenamey", encoding="utf8").decode())
-print(datetime.datetime.now().strftime("%a %H:%M"))
-print(datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
-#DirectoryEntry = 
-'''
+    for i in range(0, 243, 9):
+        name = getName(data[i:i+8])
+        if len(name) != 0:
+            arr.append(name)
+    return arr
